@@ -7,6 +7,8 @@
 ## 反手
 有空仓的情况下，有开多的信号： 平空 开多
 
+
+## code
 ```
 //@version=5
 strategy("原版海龟", overlay=true, pyramiding=3,initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=30,process_orders_on_close = true, calc_on_every_tick = false, calc_on_order_fills = false)

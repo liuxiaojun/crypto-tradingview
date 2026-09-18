@@ -1,0 +1,114 @@
+海龟交易法  
+
+## 唐奇安通道 
+* 内轨外轨/上轨下轨
+* 上一次突破是否盈利（上一次是否盈利） 上次如果盈利--》 这次发生突破（小周期突破）无效 ； 如果上次突破失败--》这次突破，进场开多 
+
+## 反手
+有空仓的情况下，有开多的信号： 平空 开多
+
+```
+//@version=5
+strategy("原版海龟", overlay=true, pyramiding=3,initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=30,process_orders_on_close = true, calc_on_every_tick = false, calc_on_order_fills = false)
+
+// -------------------------
+// 参数设置
+// -------------------------
+nEntries   = input.int(3, "最大未平仓位数")
+// riskRatio  = input.float(1, "风险比例 %", step=0.1) // 每笔风险占用总资金百分比
+atrLength  = input.int(20, "ATR周期")
+boLength   = input.int(15, "短周期突破",step =1)
+fsLength   = input.int(55 ,"长周期突破（Failsafe）")
+// teLength   = input.int(10, "移动止盈周期")
+useFilter  = input.bool(true, "是否使用上次盈利过滤")
+mas = input.int(6, "短周期")
+mal = input.int(20, "长周期")
+multiple = input.float(0.55,"atr乘数",step = 0.05)
+
+// -------------------------
+// 计算指标
+// -------------------------
+atr   = ta.atr(atrLength)   
+
+
+donchianHi = ta.highest(high[1], boLength)    // 20日唐奇安通道上轨（延后1）
+donchianLo = ta.lowest(low[1], boLength)      // 20日唐奇安通道下轨（延后1）
+fsDonchianHi = ta.highest(high[1], fsLength)  // 55日上轨
+fsDonchianLo = ta.lowest(low[1], fsLength)    // 55日下轨
+// exitLowest  = ta.lowest(low[1], teLength)     // 10日低点（多头止盈）
+// exitHighest = ta.highest(high[1], teLength)   // 10日高点（空头止盈）
+// =======出场=====
+mashort = ta.sma(close,mas)
+malong = ta.sma(close,mal)
+
+
+// -------------------------
+// 过滤条件：记录上一次交易是否盈利
+// -------------------------
+var bool lastTradeLoss = true
+if (strategy.closedtrades > 0)
+    lastTradeLoss := strategy.closedtrades.profit(strategy.closedtrades-1) < 0
+
+allowBreakout = not useFilter or lastTradeLoss
+
+
+
+// -------------------------
+// 入场逻辑
+// -------------------------
+longEntry  = allowBreakout and high > donchianHi
+shortEntry = allowBreakout and low  < donchianLo
+
+longEntryFS  = high > fsDonchianHi
+shortEntryFS = low  < fsDonchianLo
+
+if (longEntry  and strategy.position_size <= 0)
+    strategy.entry("Long", strategy.long)
+if (shortEntry  and strategy.position_size >= 0)
+    strategy.entry("Short", strategy.short)
+
+if (longEntryFS and strategy.position_size == 0)
+    strategy.entry("LongS", strategy.long)
+if (shortEntryFS and strategy.position_size == 0)
+    strategy.entry("ShortS", strategy.short)
+
+// -------------------------
+// 加仓逻辑：每0.5N 加一次仓，最多2次
+// -------------------------
+var float lastEntryPrice = na 
+if (strategy.position_size != 0 and strategy.opentrades > 0)
+    lastEntryPrice := strategy.opentrades.entry_price(strategy.opentrades-1)
+
+if strategy.position_size > 0
+    addLong = high >= lastEntryPrice + multiple * atr and strategy.opentrades <= nEntries
+    if addLong
+        strategy.entry("Longadd", strategy.long)
+
+if strategy.position_size < 0
+    addShort = low <= lastEntryPrice - multiple * atr and strategy.opentrades <= nEntries
+    if addShort
+        strategy.entry("Shortadd", strategy.short)
+
+
+
+if strategy.position_size > 0 and ta.crossunder(mashort,malong)
+    // stopPrice = lastEntryPrice - 2 * atr
+    strategy.close_all("StopLong" )
+if strategy.position_size < 0 and ta.crossover(mashort,malong)
+    // stopPrice = lastEntryPrice + 2 * atr
+    strategy.close_all("StopShort", "Short")
+
+
+
+// -------------------------
+// 绘图辅助
+// -------------------------
+plot(donchianHi,  color=color.green, title="DonchianHi(20)")
+plot(donchianLo,  color=color.red,   title="DonchianLo(20)")
+plot(fsDonchianHi,color=color.blue,  title="DonchianHi(55)")
+plot(fsDonchianLo,color=color.orange,title="DonchianLo(55)")
+// plot(exitLowest,  color=color.yellow,title="ExitLowest(10)")
+// plot(exitHighest, color=color.purple,title="ExitHighest(10)")
+
+
+```

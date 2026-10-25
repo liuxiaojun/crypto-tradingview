@@ -1,0 +1,67 @@
+//@version=6
+strategy("激活跟踪止损单独逻辑", overlay=true,default_qty_type=strategy.percent_of_equity, default_qty_value=50, commission_type=strategy.commission.percent,commission_value=0.0275,process_orders_on_close = true, calc_on_every_tick = false, calc_on_order_fills = false)
+
+
+// === 追踪止损参数 ===
+group_trailing = "追踪止损参数"
+use_trailing_stop = input.bool(true, "启用追踪止损", group=group_trailing, tooltip="开启或关闭追踪止损功能")
+trailing_activate_pct = input.float(0.6, "追踪止损激活百分比", step=0.1, group=group_trailing, tooltip="当利润达到此百分比时激活追踪止损")
+trailing_stop_pct = input.float(0.5, "追踪止损回撤百分比", step=0.1, group=group_trailing, tooltip="从最高点回撤此百分比时触发止损")
+
+
+
+// === 追踪止损状态追踪 ===
+var float long_highest_price = na
+var float short_lowest_price = na
+var bool long_trailing_active = false
+var bool short_trailing_active = false
+
+//******中间是策略逻辑和开仓信号*****//
+
+// === 止盈止损逻辑 ===
+var float entry_price = na
+if (strategy.opentrades > 0)
+    entry_price := strategy.opentrades.entry_price(0)
+
+if (strategy.position_size > 0)
+    profit_pct = (close - entry_price) / entry_price * 100
+    
+    // 更新最高价格
+    if (na(long_highest_price) or close > long_highest_price)
+        long_highest_price := close
+    
+    // 检查是否激活追踪止损
+    if (use_trailing_stop and profit_pct >= trailing_activate_pct and not long_trailing_active)
+        long_trailing_active := true
+    
+    // 追踪止损逻辑
+    if (use_trailing_stop and long_trailing_active)
+        drawdown_pct = (long_highest_price - close) / long_highest_price * 100
+        if (drawdown_pct >= trailing_stop_pct)
+            strategy.close("Long", comment="多头追踪止损")
+            // 重置追踪止损状态
+            long_highest_price := na
+            long_trailing_active := false
+    
+
+if (strategy.position_size < 0)
+    profit_pct = (entry_price - close) / entry_price * 100
+    
+    // 更新最低价格
+    if (na(short_lowest_price) or close < short_lowest_price)
+        short_lowest_price := close
+    
+    // 检查是否激活追踪止损
+    if (use_trailing_stop and profit_pct >= trailing_activate_pct and not short_trailing_active)
+        short_trailing_active := true
+    
+    // 追踪止损逻辑
+    if (use_trailing_stop and short_trailing_active)
+        drawdown_pct = (close - short_lowest_price) / short_lowest_price * 100
+        if (drawdown_pct >= trailing_stop_pct)
+            strategy.close("Short", comment="空头追踪止损")
+            // 重置追踪止损状态
+            short_lowest_price := na
+            short_trailing_active := false
+
+
